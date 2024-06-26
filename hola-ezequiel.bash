@@ -3,7 +3,7 @@
 # Define la función findandcd
 findandcd() {
     # Verifica si se pasó el parámetro "URL"
-    if [ -z "$1" ]; entonces
+    if [ -z "$1" ]; then
         echo "Uso: findandcd <nombre_del_url>"
         return 1
     fi
@@ -14,7 +14,7 @@ findandcd() {
     FILES=$(grep -rl "$URL" /etc/nginx/)
 
     # Verifica si se encontraron archivos
-    if [ -z "$FILES" ]; entonces
+    if [ -z "$FILES" ]; then
         echo "No se encontraron archivos que contengan \"$URL\" en /etc/nginx/"
         return 1
     fi
@@ -26,7 +26,7 @@ findandcd() {
     MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FIRST_FILE")
 
     # Verifica si se encontró la ruta del MAGE_ROOT
-    if [ -z "$MAGE_ROOT" ]; entonces
+    if [ -z "$MAGE_ROOT" ]; then
         echo "No se encontró la ruta del MAGE_ROOT en $FIRST_FILE"
         return 1
     fi
