@@ -31,6 +31,13 @@ findandcd() {
         return 1
     fi
 
+    # Busca el dominio completo en el archivo
+    DOMAIN=$(grep -oP "server_name \K[^;]+" "$FIRST_FILE")
+
+    # Muestra el archivo y el dominio encontrado
+    echo "Archivo encontrado: $FIRST_FILE"
+    echo "Dominio encontrado: $DOMAIN"
+
     # Cambia el directorio a la ruta del MAGE_ROOT
     cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
 
@@ -40,3 +47,4 @@ findandcd() {
 
 # Define el alias en la sesión actual del shell
 alias findandcd='findandcd'
+
