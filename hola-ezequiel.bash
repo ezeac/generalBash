@@ -29,3 +29,5 @@ findandcd() {
 }
 
 alias findandcd='findandcd'
+
+vim -c 'set mouse-=a'
