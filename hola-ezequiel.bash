@@ -28,7 +28,7 @@ findandcd() {
     cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
 }
 
-alias findandcd='findandcd'
+alias holafindandcd='findandcd'
 
 export VIMINIT=':set mouse-=a'
 
