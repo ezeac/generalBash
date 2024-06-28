@@ -9,7 +9,7 @@ findandcd() {
     URL=$1
 
     # Primero buscar en /etc/nginx/sites-enabled
-    FILES=$(grep -rl "$URL" /etc/nginx/sites-enabled/)
+    FILES=$(grep -rl "$URL" /etc/nginx/sites-enabled/*)
     if [ -z "$FILES" ]; then
         # Si no encuentra resultados, buscar en /etc/nginx
         FILES=$(grep -rl "$URL" /etc/nginx/)
