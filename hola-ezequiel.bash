@@ -8,11 +8,17 @@ findandcd() {
 
     URL=$1
 
-    FILES=$(grep -rl "$URL" /etc/nginx/)
+    # Primero buscar en /etc/nginx/sites-enabled
+    FILES=$(grep -rl "$URL" /etc/nginx/sites-enabled/)
     if [ -z "$FILES" ]; then
-        echo "No se encontraron archivos que contengan \"$URL\" en /etc/nginx/"
-        return 1
+        # Si no encuentra resultados, buscar en /etc/nginx
+        FILES=$(grep -rl "$URL" /etc/nginx/)
+        if [ -z "$FILES" ]; then
+            echo "No se encontraron archivos que contengan \"$URL\" en /etc/nginx/sites-enabled/ ni en /etc/nginx/"
+            return 1
+        fi
     fi
+
     FIRST_FILE=$(echo "$FILES" | head -n 1)
 
     MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FIRST_FILE")
