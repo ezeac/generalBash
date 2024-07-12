@@ -21,19 +21,22 @@ findandcd() {
         fi
     fi
 
-    FIRST_FILE=$(echo "$FILES" | head -n 1)
+    # Obtener los primeros 3 archivos
+    FILES=$(echo "$FILES" | head -n 3)
 
-    MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FIRST_FILE")
-    if [ -z "$MAGE_ROOT" ]; then
-        echo "No se encontró la ruta del MAGE_ROOT en $FIRST_FILE"
-        return 1
-    fi
-    DOMAIN_FOUND=$(grep -oP "server_name \K[^;]+" "$FIRST_FILE" | head -n 1)
+    for FILE in $FILES; do
+        MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FILE")
+        if [ -n "$MAGE_ROOT" ]; then
+            DOMAIN_FOUND=$(grep -oP "server_name \K[^;]+" "$FILE" | head -n 1)
+            echo "Archivo encontrado: $FILE"
+            echo "Dominio encontrado: $DOMAIN_FOUND"
+            cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
+            return 0
+        fi
+    done
 
-    echo "Archivo encontrado: $FIRST_FILE"
-    echo "Dominio encontrado: $DOMAIN_FOUND"
-
-    cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
+    echo "No se encontró la ruta del MAGE_ROOT en los primeros 3 archivos"
+    return 1
 }
 
 alias holafindandcd='findandcd'
