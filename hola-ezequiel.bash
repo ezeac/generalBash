@@ -21,8 +21,8 @@ findandcd() {
         fi
     fi
 
-    # Obtener los primeros 3 archivos
-    FILES=$(echo "$FILES" | head -n 3)
+    # Obtener los primeros 10 archivos
+    FILES=$(echo "$FILES" | head -n 10)
 
     for FILE in $FILES; do
         MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FILE")
@@ -35,7 +35,7 @@ findandcd() {
         fi
     done
 
-    echo "No se encontró la ruta del MAGE_ROOT en los primeros 3 archivos"
+    echo "No se encontró la ruta del MAGE_ROOT en los primeros 10 archivos"
     return 1
 }
 
