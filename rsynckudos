@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Archivo para almacenar la ruta de destino
+DEST_FILE=".rsynckudos_dest"
+
+# Verifica si el archivo de ruta de destino existe en el directorio actual
+if [ ! -f "$DEST_FILE" ]; then
+    echo -n "Ingresa la ruta base de destino: "
+    read DEST_BASE_PATH
+    echo "$DEST_BASE_PATH" > "$DEST_FILE"
+else
+    DEST_BASE_PATH=$(cat "$DEST_FILE")
+fi
+
+# Verifica que se haya proporcionado al menos un argumento
+if [ $# -lt 1 ]; then
+    echo "Uso: rsynckudos ruta_origen1 [ruta_origen2 ...]"
+    exit 1
+fi
+
+# Recorre todas las rutas de origen proporcionadas como argumentos
+for SRC_PATH in "$@"
+do
+    # Verifica si la ruta de origen existe
+    if [ ! -e "$SRC_PATH" ]; then
+        echo "La ruta de origen no existe: $SRC_PATH"
+        continue
+    fi
+
+    # Construye la ruta de destino concatenando la ruta base y la de origen
+    DEST_PATH="$DEST_BASE_PATH/$SRC_PATH"
+
+    # Asegura que el directorio de destino exista
+    DEST_DIR=$(dirname "$DEST_PATH")
+    mkdir -p "$DEST_DIR"
+
+    # Ejecuta el comando rsync
+    rsync --progress -ah --no-g "$SRC_PATH" "$DEST_PATH"
+done
+
