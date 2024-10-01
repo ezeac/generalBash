@@ -30,6 +30,7 @@ findandcd() {
     fi
 
     RESULTS=()
+    SELECTED_FILES=()
     INDEX=1
 
     for FILE in $FILES; do
@@ -39,6 +40,7 @@ findandcd() {
             RESULTS+=("$INDEX) Archivo: $FILE")
             RESULTS+=("   Dominio: $DOMAIN_FOUND")
             RESULTS+=("   MAGE_ROOT: $MAGE_ROOT")
+            SELECTED_FILES+=("$FILE")
             ((INDEX++))
         fi
     done
@@ -57,13 +59,13 @@ findandcd() {
         read -r SELECTION
 
         # Validar la selección del usuario
-        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]; then
+        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ]] || [ "$SELECTION" -ge "$INDEX" ]; then
             echo "Selección inválida."
             return 1
         fi
 
         # Obtener el MAGE_ROOT seleccionado
-        SELECTED_FILE=$(echo "$FILES" | sed -n "${SELECTION}p")
+        SELECTED_FILE="${SELECTED_FILES[$((SELECTION - 1))]}"
         MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$SELECTED_FILE")
 
         cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
@@ -74,4 +76,3 @@ findandcd() {
 alias holafindandcd='findandcd'
 
 export VIMINIT=':set mouse-=a'
-

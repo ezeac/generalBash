@@ -3,6 +3,15 @@
 # Archivo para almacenar la ruta de destino
 DEST_FILE=".rsynckudos_dest"
 
+# Variable para controlar si se debe usar --delete
+DELETE_OPTION=""
+
+# Verifica si el primer argumento es "--delete"
+if [ "$1" == "--delete" ]; then
+    DELETE_OPTION="--delete"
+    shift # Elimina el primer argumento (es decir, --delete) de la lista de argumentos
+fi
+
 # Verifica si el archivo de ruta de destino existe en el directorio actual
 if [ ! -f "$DEST_FILE" ]; then
     echo -n "Ingresa la ruta base de destino: "
@@ -12,9 +21,9 @@ else
     DEST_BASE_PATH=$(cat "$DEST_FILE")
 fi
 
-# Verifica que se haya proporcionado al menos un argumento
+# Verifica que se haya proporcionado al menos un argumento después de --delete
 if [ $# -lt 1 ]; then
-    echo "Uso: rsynckudos ruta_origen1 [ruta_origen2 ...]"
+    echo "Uso: rsynckudos [--delete] ruta_origen1 [ruta_origen2 ...]"
     exit 1
 fi
 
@@ -25,7 +34,7 @@ do
     if [ ! -e "$SRC_PATH" ]; then
         echo "La ruta de origen no existe: $SRC_PATH"
         continue
-    fi
+    fi  
 
     # Construye la ruta de destino concatenando la ruta base y la de origen
     DEST_PATH="$DEST_BASE_PATH/$SRC_PATH"
@@ -34,7 +43,7 @@ do
     DEST_DIR=$(dirname "$DEST_PATH")
     mkdir -p "$DEST_DIR"
 
-    # Ejecuta el comando rsync
-    rsync --progress -ah --no-g "$SRC_PATH" "$DEST_PATH"
+    # Ejecuta el comando rsync con la opción --delete si se ha especificado
+    rsync --progress -ah --no-g $DELETE_OPTION "$SRC_PATH" "$DEST_PATH"
 done
 
