@@ -59,7 +59,7 @@ findandcd() {
         read -r SELECTION
 
         # Validar la selección del usuario
-        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ]] || [ "$SELECTION" -ge "$INDEX" ]; then
+        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]; then
             echo "Selección inválida."
             return 1
         fi
@@ -76,3 +76,4 @@ findandcd() {
 alias holafindandcd='findandcd'
 
 export VIMINIT=':set mouse-=a'
+
