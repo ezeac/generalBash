@@ -10,6 +10,11 @@ findandcd() {
     URL=$1
     DOMAIN=$(echo "$URL" | sed -E 's~https?://~~' | awk -F[/:] '{print $1}')
 
+    # Código ANSI para color verde
+    GREEN="\033[0;32m"
+    # Código ANSI para restablecer color
+    NC="\033[0m"
+
     # Función para buscar en un directorio específico
     search_in_directory() {
         local DIRECTORY=$1
@@ -46,7 +51,7 @@ findandcd() {
                 fi
             done
             if [ "$FOUND" -eq 1 ]; then
-                RESULTS+=("$INDEX) Dominio: $DOMAIN_FOUND")
+                RESULTS+=("$INDEX) Dominio: ${GREEN}$DOMAIN_FOUND${NC}")
                 RESULTS+=("   Archivo: $FILE")
                 RESULTS+=("   MAGE_ROOT: $MAGE_ROOT")
                 SELECTED_FILES+=("$FILE")
@@ -61,7 +66,7 @@ findandcd() {
     else
         echo "Se encontraron múltiples resultados:"
         for RESULT in "${RESULTS[@]}"; do
-            echo "$RESULT"
+            echo -e "$RESULT"
         done
 
         # Preguntar al usuario cuál seleccionar
