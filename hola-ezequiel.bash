@@ -13,7 +13,7 @@ findandcd() {
     # Función para buscar en un directorio específico
     search_in_directory() {
         local DIRECTORY=$1
-        grep -rl "$DOMAIN" "$DIRECTORY" 2>/dev/null
+        grep -rl "server_name.*$DOMAIN" "$DIRECTORY" 2>/dev/null
     }
 
     # Buscar en /etc/nginx/sites-enabled, /etc/nginx/conf.d y /etc/nginx
@@ -25,7 +25,7 @@ findandcd() {
     FILES=$(echo "$FILES" | tr ' ' '\n' | sort -u | sed '/^$/d')
 
     if [ -z "$FILES" ]; then
-        echo "No se encontraron archivos que contengan \"$DOMAIN\" en /etc/nginx/"
+        echo "No se encontraron archivos que contengan \"$DOMAIN\" en las directivas server_name de /etc/nginx/"
         return 1
     fi
 
@@ -37,11 +37,21 @@ findandcd() {
         MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FILE")
         if [ -n "$MAGE_ROOT" ]; then
             DOMAIN_FOUND=$(grep -oP "server_name \K[^;]+" "$FILE" | head -n 1)
-            RESULTS+=("$INDEX) Archivo: $FILE")
-            RESULTS+=("   Dominio: $DOMAIN_FOUND")
-            RESULTS+=("   MAGE_ROOT: $MAGE_ROOT")
-            SELECTED_FILES+=("$FILE")
-            ((INDEX++))
+            IFS=' ' read -r -a DOMAIN_ARRAY <<< "$DOMAIN_FOUND"
+            FOUND=0
+            for DOM in "${DOMAIN_ARRAY[@]}"; do
+                if [[ "$DOM" == *"$DOMAIN"* ]]; then
+                    FOUND=1
+                    break
+                fi
+            done
+            if [ "$FOUND" -eq 1 ]; then
+                RESULTS+=("$INDEX) Dominio: $DOMAIN_FOUND")
+                RESULTS+=("   Archivo: $FILE")
+                RESULTS+=("   MAGE_ROOT: $MAGE_ROOT")
+                SELECTED_FILES+=("$FILE")
+                ((INDEX++))
+            fi
         fi
     done
 
@@ -59,7 +69,7 @@ findandcd() {
         read -r SELECTION
 
         # Validar la selección del usuario
-        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]; then
+        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]]; then
             echo "Selección inválida."
             return 1
         fi
