@@ -10,10 +10,9 @@ findandcd() {
     URL=$1
     DOMAIN=$(echo "$URL" | sed -E 's~https?://~~' | awk -F[/:] '{print $1}')
 
-    # Código ANSI para color verde
+    # Códigos ANSI para colores
     GREEN="\033[0;32m"
-    # Código ANSI para restablecer color
-    NC="\033[0m"
+    NC="\033[0m" # Sin color
 
     # Función para buscar en un directorio específico
     search_in_directory() {
@@ -21,12 +20,12 @@ findandcd() {
         grep -rl "server_name.*$DOMAIN" "$DIRECTORY" 2>/dev/null
     }
 
-    # Buscar en /etc/nginx/sites-enabled, /etc/nginx/conf.d y /etc/nginx
+    # Buscar en directorios de configuración de Nginx
     FILES=$(search_in_directory /etc/nginx/sites-enabled)
     FILES+=" $(search_in_directory /etc/nginx/conf.d)"
     FILES+=" $(search_in_directory /etc/nginx)"
 
-    # Filtrar resultados únicos y eliminar espacios en blanco
+    # Filtrar resultados únicos y eliminar líneas vacías
     FILES=$(echo "$FILES" | tr ' ' '\n' | sort -u | sed '/^$/d')
 
     if [ -z "$FILES" ]; then
@@ -51,9 +50,10 @@ findandcd() {
                 fi
             done
             if [ "$FOUND" -eq 1 ]; then
-                RESULTS+=("$INDEX) Dominio: ${GREEN}$DOMAIN_FOUND${NC}")
-                RESULTS+=("   Archivo: $FILE")
-                RESULTS+=("   MAGE_ROOT: $MAGE_ROOT")
+                RESULTS+=("$INDEX")
+                RESULTS+=("$DOMAIN_FOUND")
+                RESULTS+=("$FILE")
+                RESULTS+=("$MAGE_ROOT")
                 SELECTED_FILES+=("$FILE")
                 ((INDEX++))
             fi
@@ -65,12 +65,20 @@ findandcd() {
         return 1
     else
         echo "Se encontraron múltiples resultados:"
-        for RESULT in "${RESULTS[@]}"; do
-            echo -e "$RESULT"
+        for ((i=0; i<${#RESULTS[@]}; i+=4)); do
+            NUM="${RESULTS[$i]}"
+            DOM="${RESULTS[$i+1]}"
+            FILE="${RESULTS[$i+2]}"
+            MAGE_ROOT="${RESULTS[$i+3]}"
+
+            # Imprimir con colores usando printf
+            printf "%s) Dominio: ${GREEN}%s${NC}\n" "$NUM" "$DOM"
+            printf "   Archivo: %s\n" "$FILE"
+            printf "   MAGE_ROOT: %s\n" "$MAGE_ROOT"
         done
 
         # Preguntar al usuario cuál seleccionar
-        echo -n "Seleccione el número del sitio al que desea ir: "
+        printf "Seleccione el número del sitio al que desea ir: "
         read -r SELECTION
 
         # Validar la selección del usuario
