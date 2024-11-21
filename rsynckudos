@@ -21,6 +21,12 @@ else
     DEST_BASE_PATH=$(cat "$DEST_FILE")
 fi
 
+# Verifica si la carpeta de destino está vacía
+if [ -d "$DEST_BASE_PATH" ] && [ -z "$(ls -A "$DEST_BASE_PATH")" ]; then
+    echo "La carpeta de destino '$DEST_BASE_PATH' está vacía. Saliendo..."
+    exit 1
+fi
+
 # Verifica que se haya proporcionado al menos un argumento después de --delete
 if [ $# -lt 1 ]; then
     echo "Uso: rsynckudos [--delete] ruta_origen1 [ruta_origen2 ...]"

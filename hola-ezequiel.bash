@@ -1,5 +1,3 @@
-#!/bin/bash
-
 findandcd() {
     if [ -z "$1" ]; then
         echo "Uso: findandcd <nombre_del_url>"
@@ -38,18 +36,18 @@ findandcd() {
     INDEX=1
 
     for FILE in $FILES; do
-        MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$FILE")
-        if [ -n "$MAGE_ROOT" ]; then
-            DOMAIN_FOUND=$(grep -oP "server_name \K[^;]+" "$FILE" | head -n 1)
-            IFS=' ' read -r -a DOMAIN_ARRAY <<< "$DOMAIN_FOUND"
-            FOUND=0
-            for DOM in "${DOMAIN_ARRAY[@]}"; do
-                if [[ "$DOM" == *"$DOMAIN"* ]]; then
-                    FOUND=1
-                    break
-                fi
-            done
-            if [ "$FOUND" -eq 1 ]; then
+        # Buscar el bloque de servidor que contiene el dominio
+        SERVER_BLOCK=$(awk "/server\s*{/,/}/" "$FILE" | grep -E "server_name.*$DOMAIN")
+        if [ -n "$SERVER_BLOCK" ]; then
+            # Intentar obtener $MAGE_ROOT del mismo bloque de servidor
+            MAGE_ROOT=$(awk "/server\s*{/,/}/" "$FILE" | grep -A 50 "server_name.*$DOMAIN" | grep -m1 -oP "set \\\$MAGE_ROOT \K[^;]+")
+            if [ -z "$MAGE_ROOT" ]; then
+                # Si no se encontró, buscar en el bloque de localhost:8080
+                MAGE_ROOT=$(awk "/server\s*{/,/}/" "$FILE" | grep -A 50 "listen 8080" | grep -A 50 "server_name.*localhost" | grep -m1 -oP "set \\\$MAGE_ROOT \K[^;]+")
+            fi
+
+            if [ -n "$MAGE_ROOT" ]; then
+                DOMAIN_FOUND=$(echo "$SERVER_BLOCK" | grep -oP "server_name \K[^;]+")
                 RESULTS+=("$INDEX")
                 RESULTS+=("$DOMAIN_FOUND")
                 RESULTS+=("$FILE")
@@ -77,26 +75,26 @@ findandcd() {
             printf "   MAGE_ROOT: %s\n" "$MAGE_ROOT"
         done
 
-        # Preguntar al usuario cuál seleccionar
-        printf "Seleccione el número del sitio al que desea ir: "
-        read -r SELECTION
+        # Preguntar al usuario cuál seleccionar si hay múltiples opciones
+        if [ "$INDEX" -gt 2 ]; then
+            printf "Seleccione el número del sitio al que desea ir: "
+            read -r SELECTION
 
-        # Validar la selección del usuario
-        if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]; then
-            echo "Selección inválida."
-            return 1
+            # Validar la selección del usuario
+            if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]; then
+                echo "Selección inválida."
+                return 1
+            fi
+        else
+            SELECTION=1
         fi
 
         # Obtener el MAGE_ROOT seleccionado
         SELECTED_FILE="${SELECTED_FILES[$((SELECTION - 1))]}"
-        MAGE_ROOT=$(grep -oP "set \\\$MAGE_ROOT \K[^;]+" "$SELECTED_FILE")
+        MAGE_ROOT="${RESULTS[$(( (SELECTION - 1) * 4 + 3 ))]}"
 
         cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
         return 0
     fi
 }
-
-alias holafindandcd='findandcd'
-
-export VIMINIT=':set mouse-=a'
 
