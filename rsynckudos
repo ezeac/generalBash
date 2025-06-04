@@ -1,16 +1,36 @@
 #!/bin/bash
 
+# Variables para opciones
+RELOAD=0
+DELETE_OPTION=""
+
+# Procesar opciones --reload y --delete
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --reload)
+            RELOAD=1
+            shift
+            ;;
+        --delete)
+            DELETE_OPTION="--delete"
+            shift
+            ;;
+        *)
+            # Salir del bucle si no es una opción
+            break
+            ;;
+    esac
+done
+
+# Ejecutar montaje remoto solo si se usa --reload
+if [[ $RELOAD -eq 1 ]]; then
+    sudo umount -l /home/ezequiel/www/remote/Magento2 /home/ezequiel/www/remote/html
+    echo "Developers2017" && sshfs -p 25964 develop@181.165.127.151:/home/develop/Code/Magento2/ ~/www/remote/Magento2/ && sshfs -p 25964 develop@181.165.127.151:/var/www/html/ ~/www/remote/html/
+fi
+
 # Archivo para almacenar la ruta de destino
 DEST_FILE=".rsynckudos_dest"
 
-# Variable para controlar si se debe usar --delete
-DELETE_OPTION=""
-
-# Verifica si el primer argumento es "--delete"
-if [ "$1" == "--delete" ]; then
-    DELETE_OPTION="--delete"
-    shift # Elimina el primer argumento (es decir, --delete) de la lista de argumentos
-fi
 
 # Verifica si el archivo de ruta de destino existe en el directorio actual
 if [ ! -f "$DEST_FILE" ]; then

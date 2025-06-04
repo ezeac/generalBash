@@ -18,7 +18,7 @@ findandcd() {
         grep -rl "server_name.*$DOMAIN" "$DIRECTORY" 2>/dev/null
     }
 
-    # Buscar en directorios de configuración de Nginx y almacenar resultados por separado
+    # Buscar en directorios de configuración de Nginx
     FILES_ENABLED=$(search_in_directory "/etc/nginx/sites-enabled")
     FILES_CONF_D=$(search_in_directory "/etc/nginx/conf.d")
     FILES_NGINX=$(search_in_directory "/etc/nginx")
@@ -27,7 +27,9 @@ findandcd() {
     FILES=$(printf "%s\n%s\n%s\n" "$FILES_ENABLED" "$FILES_CONF_D" "$FILES_NGINX" | awk '!seen[$0]++' | sed '/^$/d')
 
     if [ -z "$FILES" ]; then
-        echo "No se encontraron archivos que contengan \"$DOMAIN\" en las directivas server_name de /etc/nginx/"
+        echo "No se encontraron archivos de configuración con el dominio \"$DOMAIN\""
+        echo "Realizando búsqueda recursiva en /etc/nginx:"
+        grep -r --color=auto "$DOMAIN" /etc/nginx
         return 1
     fi
 
@@ -99,6 +101,4 @@ findandcd() {
 }
 
 alias holafindandcd='findandcd'
-
 export VIMINIT=':set mouse-=a'
-
