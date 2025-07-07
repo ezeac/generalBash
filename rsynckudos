@@ -3,8 +3,9 @@
 # Variables para opciones
 RELOAD=0
 DELETE_OPTION=""
+EXCLUDE_PATTERNS=()
 
-# Procesar opciones --reload y --delete
+# Procesar opciones --reload, --delete y --exclude
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --reload)
@@ -14,6 +15,16 @@ while [[ $# -gt 0 ]]; do
         --delete)
             DELETE_OPTION="--delete"
             shift
+            ;;
+        --exclude)
+            # Añadir patrón de exclusión al array
+            if [ -n "$2" ]; then
+                EXCLUDE_PATTERNS+=("--exclude=$2")
+                shift 2
+            else
+                echo "Error: --exclude requiere un patrón"
+                exit 1
+            fi
             ;;
         *)
             # Salir del bucle si no es una opción
@@ -31,7 +42,6 @@ fi
 # Archivo para almacenar la ruta de destino
 DEST_FILE=".rsynckudos_dest"
 
-
 # Verifica si el archivo de ruta de destino existe en el directorio actual
 if [ ! -f "$DEST_FILE" ]; then
     echo -n "Ingresa la ruta base de destino: "
@@ -47,9 +57,9 @@ if [ -d "$DEST_BASE_PATH" ] && [ -z "$(ls -A "$DEST_BASE_PATH")" ]; then
     exit 1
 fi
 
-# Verifica que se haya proporcionado al menos un argumento después de --delete
+# Verifica que se haya proporcionado al menos un argumento (ruta de origen)
 if [ $# -lt 1 ]; then
-    echo "Uso: rsynckudos [--delete] ruta_origen1 [ruta_origen2 ...]"
+    echo "Uso: rsynckudos [--reload] [--delete] [--exclude PATRÓN]... ruta_origen1 [ruta_origen2 ...]"
     exit 1
 fi
 
@@ -69,7 +79,9 @@ do
     DEST_DIR=$(dirname "$DEST_PATH")
     mkdir -p "$DEST_DIR"
 
-    # Ejecuta el comando rsync con la opción --delete si se ha especificado
-    rsync --progress -ah --no-g $DELETE_OPTION "$SRC_PATH" "$DEST_PATH"
+    # Ejecuta el comando rsync con las opciones adecuadas
+    rsync --progress -ah --no-g \
+        $DELETE_OPTION \
+        "${EXCLUDE_PATTERNS[@]}" \
+        "$SRC_PATH" "$DEST_PATH"
 done
-
