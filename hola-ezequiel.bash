@@ -10,6 +10,8 @@ findandcd() {
 
     # Códigos ANSI para colores
     GREEN="\033[0;32m"
+    BLUE="\033[0;34m"
+    YELLOW="\033[0;33m"
     NC="\033[0m" # Sin color
 
     # Función para buscar en un directorio específico
@@ -43,17 +45,23 @@ findandcd() {
         if [ -n "$SERVER_BLOCK" ]; then
             # Intentar obtener $MAGE_ROOT del mismo bloque de servidor
             MAGE_ROOT=$(awk "/server\s*{/,/}/" "$FILE" | grep -A 50 "server_name.*$DOMAIN" | grep -m1 -oP "set \\\$MAGE_ROOT \K[^;]+")
-            if [ -z "$MAGE_ROOT" ]; then
-                # Si no se encontró, buscar en el bloque de localhost:8080
-                MAGE_ROOT=$(awk "/server\s*{/,/}/" "$FILE" | grep -A 50 "listen 8080" | grep -A 50 "server_name.*localhost" | grep -m1 -oP "set \\\$MAGE_ROOT \K[^;]+")
-            fi
-
+            PORT=$(awk "/server\s*{/,/}/" "$FILE" | grep -A 50 "server_name.*$DOMAIN" | grep -m1 "proxy_pass" | grep -oP ":[0-9]+" | cut -d: -f2 | head -1)
+            DOMAIN_FOUND=$(echo "$SERVER_BLOCK" | grep -oP "server_name \K[^;]+")
+            
             if [ -n "$MAGE_ROOT" ]; then
-                DOMAIN_FOUND=$(echo "$SERVER_BLOCK" | grep -oP "server_name \K[^;]+")
                 RESULTS+=("$INDEX")
                 RESULTS+=("$DOMAIN_FOUND")
                 RESULTS+=("$FILE")
+                RESULTS+=("traditional")
                 RESULTS+=("$MAGE_ROOT")
+                SELECTED_FILES+=("$FILE")
+                ((INDEX++))
+            elif [ -n "$PORT" ]; then
+                RESULTS+=("$INDEX")
+                RESULTS+=("$DOMAIN_FOUND")
+                RESULTS+=("$FILE")
+                RESULTS+=("docker")
+                RESULTS+=("$PORT")
                 SELECTED_FILES+=("$FILE")
                 ((INDEX++))
             fi
@@ -61,20 +69,26 @@ findandcd() {
     done
 
     if [ ${#RESULTS[@]} -eq 0 ]; then
-        echo "No se encontró la ruta del MAGE_ROOT en los archivos encontrados."
+        echo "No se encontraron configuraciones válidas para el dominio."
         return 1
     else
         echo "Se encontraron los siguientes resultados (priorizando /etc/nginx/sites-enabled):"
-        for ((i=0; i<${#RESULTS[@]}; i+=4)); do
+        for ((i=0; i<${#RESULTS[@]}; i+=5)); do
             NUM="${RESULTS[$i]}"
             DOM="${RESULTS[$i+1]}"
             FILE="${RESULTS[$i+2]}"
-            MAGE_ROOT="${RESULTS[$i+3]}"
+            TYPE="${RESULTS[$i+3]}"
+            DATA="${RESULTS[$i+4]}"
 
-            # Imprimir con colores usando printf
-            printf "%s) Dominio: ${GREEN}%s${NC}\n" "$NUM" "$DOM"
-            printf "   Archivo: %s\n" "$FILE"
-            printf "   MAGE_ROOT: %s\n" "$MAGE_ROOT"
+            if [ "$TYPE" = "traditional" ]; then
+                printf "%s) Dominio: ${GREEN}%s${NC} (traditional)\n" "$NUM" "$DOM"
+                printf "   Archivo: %s\n" "$FILE"
+                printf "   MAGE_ROOT: %s\n" "$DATA"
+            else
+                printf "%s) Dominio: ${GREEN}%s${NC} (docker)\n" "$NUM" "$DOM"
+                printf "   Archivo: %s\n" "$FILE"
+                printf "   Puerto proxy: ${BLUE}%s${NC}\n" "$DATA"
+            fi
         done
 
         # Preguntar al usuario cuál seleccionar si hay múltiples opciones
@@ -91,14 +105,105 @@ findandcd() {
             SELECTION=1
         fi
 
-        # Obtener el MAGE_ROOT seleccionado
-        SELECTED_FILE="${SELECTED_FILES[$((SELECTION - 1))]}"
-        MAGE_ROOT="${RESULTS[$(( (SELECTION - 1) * 4 + 3 ))]}"
+        # Obtener los datos seleccionados
+        TYPE="${RESULTS[$(( (SELECTION - 1) * 5 + 3 ))]}"
+        DATA="${RESULTS[$(( (SELECTION - 1) * 5 + 4 ))]}"
 
-        cd "$MAGE_ROOT" || { echo "No se pudo cambiar al directorio $MAGE_ROOT"; return 1; }
-        return 0
+        if [ "$TYPE" = "traditional" ]; then
+            cd "$DATA" || { echo "No se pudo cambiar al directorio $DATA"; return 1; }
+            return 0
+        else
+            PORT="$DATA"
+            echo "Buscando contenedor Docker con puerto $PORT..."
+            
+            # Buscar ID del contenedor usando el puerto
+            CONTAINER_ID=$(docker ps --format '{{.ID}}' | while read -r ID; do
+                if docker port "$ID" | grep -q ":$PORT"; then
+                    echo "$ID"
+                    break
+                fi
+            done)
+
+            if [ -z "$CONTAINER_ID" ]; then
+                echo "No se encontró ningún contenedor usando el puerto $PORT."
+                return 1
+            fi
+
+            echo "Contenedor encontrado: ${CONTAINER_ID}"
+            echo "Buscando ruta del proyecto..."
+            
+            # Obtener todos los volúmenes bindeados del contenedor
+            VOLUMES=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}:{{.Destination}}{{"\n"}}{{end}}{{end}}' "$CONTAINER_ID")
+
+            if [ -z "$VOLUMES" ]; then
+                echo "No se encontraron volúmenes bindeados en el contenedor."
+                return 1
+            fi
+
+            # Intentar encontrar automáticamente la raíz del proyecto
+            HOST_PATH=""
+            while IFS= read -r line; do
+                IFS=':' read -r SOURCE DEST <<< "$line"
+                # Buscar archivos clave que indiquen la raíz del proyecto
+                if [[ -f "${SOURCE}/composer.json" || -d "${SOURCE}/app" || -d "${SOURCE}/vendor" ]]; then
+                    HOST_PATH="$SOURCE"
+                    break
+                fi
+            done <<< "$VOLUMES"
+
+            if [ -n "$HOST_PATH" ]; then
+                echo -e "Ruta del proyecto encontrada automáticamente: ${YELLOW}$HOST_PATH${NC}"
+                cd "$HOST_PATH" || { echo "No se pudo cambiar al directorio $HOST_PATH"; return 1; }
+                return 0
+            fi
+
+            # Si no se encontró automáticamente, buscar archivos clave en los directorios padres
+            while IFS= read -r line; do
+                IFS=':' read -r SOURCE DEST <<< "$line"
+                PARENT_DIR=$(dirname "$SOURCE")
+                if [[ -f "${PARENT_DIR}/composer.json" || -d "${PARENT_DIR}/app" || -d "${PARENT_DIR}/vendor" ]]; then
+                    HOST_PATH="$PARENT_DIR"
+                    break
+                fi
+            done <<< "$VOLUMES"
+
+            if [ -n "$HOST_PATH" ]; then
+                echo -e "Ruta del proyecto encontrada en directorio padre: ${YELLOW}$HOST_PATH${NC}"
+                cd "$HOST_PATH" || { echo "No se pudo cambiar al directorio $HOST_PATH"; return 1; }
+                return 0
+            fi
+
+            # Si aún no se encontró, mostrar todos los volúmenes y preguntar
+            VOLUME_PATHS=()
+            while IFS= read -r line; do
+                if [ -n "$line" ]; then
+                    VOLUME_PATHS+=("$line")
+                fi
+            done <<< "$VOLUMES"
+
+            echo "Se encontraron múltiples volúmenes:"
+            for i in "${!VOLUME_PATHS[@]}"; do
+                IFS=':' read -r SOURCE DEST <<< "${VOLUME_PATHS[$i]}"
+                printf "%2d) Origen: ${BLUE}%s${NC}\n" "$((i+1))" "$SOURCE"
+                printf "    Destino: %s\n" "$DEST"
+            done
+
+            printf "Seleccione el volumen que contiene el proyecto: "
+            read -r VOL_SELECTION
+
+            if ! [[ "$VOL_SELECTION" =~ ^[0-9]+$ ]] || [ "$VOL_SELECTION" -lt 1 ] || [ "$VOL_SELECTION" -gt "${#VOLUME_PATHS[@]}" ]; then
+                echo "Selección inválida."
+                return 1
+            fi
+
+            IFS=':' read -r SOURCE DEST <<< "${VOLUME_PATHS[$((VOL_SELECTION-1))]}"
+            echo -e "Ruta del proyecto: ${YELLOW}$SOURCE${NC}"
+            cd "$SOURCE" || { echo "No se pudo cambiar al directorio $SOURCE"; return 1; }
+            return 0
+        fi
     fi
 }
 
 alias holafindandcd='findandcd'
-export VIMINIT=':set mouse-=a'
+export VIMINIT=':set mouse-=a number relativenumber | syntax on | set background=dark | colorscheme desert'
+
