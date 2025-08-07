@@ -1,0 +1,202 @@
+#!/bin/bash
+# Gestor Avanzado de Disposición de Ventanas v5.1
+# Guarda/restaura posiciones, tamaños, escritorios y orden de apilamiento
+# Modificado para usar windowactivate en la restauración del apilamiento
+
+# Configuración
+LAYOUT_DIR="$HOME/.window_layouts"
+SCRIPT_PATH="$(realpath "$0")"
+
+# Función para guardar disposiciones
+save_layout() {
+    local num="$1"
+    # Verificar herramientas
+    if ! command -v xdotool &> /dev/null || ! command -v wmctrl &> /dev/null; then
+        notify-send "Gestor Ventanas" "Faltan herramientas esenciales. Ejecuta '${SCRIPT_PATH} install'"
+        return 1
+    fi
+    
+    # Crear directorio si no existe
+    mkdir -p "$LAYOUT_DIR"
+    
+    # Guardar ventanas visibles (excluyendo ventanas de escritorio)
+    wmctrl -lG | awk '$2 != "-1"' > "${LAYOUT_DIR}/layout_${num}"
+    
+    # Capturar orden de apilamiento (de abajo a arriba)
+    xprop -root _NET_CLIENT_LIST_STACKING | \
+        awk -F'# ' '{print $2}' | \
+        tr -d ',' | \
+        xargs -n1 > "${LAYOUT_DIR}/stack_${num}"
+    
+    # Filtrar solo ventanas visibles
+    #grep -F -f <(awk '{print $1}' "${LAYOUT_DIR}/layout_${num}") "${LAYOUT_DIR}/stack_${num}" \
+    #    > "${LAYOUT_DIR}/stack_${num}.tmp"
+    #mv "${LAYOUT_DIR}/stack_${num}.tmp" "${LAYOUT_DIR}/stack_${num}"
+    
+    # Obtener ventana activa
+    active_win=$(xdotool getactivewindow)
+    echo "$active_win" > "${LAYOUT_DIR}/active_${num}"
+    
+    notify-send "Gestor Ventanas" "Disposición ${num} guardada\nVentanas: $(wc -l < "${LAYOUT_DIR}/layout_${num}")"
+}
+
+# Función para restaurar disposiciones
+restore_layout() {
+    local num="$1"
+    # Verificar existencia de datos
+    if [[ ! -f "${LAYOUT_DIR}/layout_${num}" ]]; then
+        notify-send "Gestor Ventanas" "⚠️ No hay disposición guardada para ${num}"
+        return 1
+    fi
+    
+    # Restaurar geometría y escritorios
+    while IFS= read -r line; do
+        read -a params <<< "$line"
+        win_id="${params[0]}"
+        
+        # Solo procesar ventanas existentes
+        if xdotool getwindowname "$win_id" &> /dev/null; then
+            # Mover al escritorio correcto
+            wmctrl -ir "$win_id" -t "${params[1]}"
+            
+            # Restaurar geometría
+            xdotool windowmove "$win_id" "${params[2]}" "${params[3]}"
+            xdotool windowsize "$win_id" "${params[4]}" "${params[5]}"
+        fi
+    done < "${LAYOUT_DIR}/layout_${num}"
+    
+    # Restaurar orden de apilamiento usando windowactivate
+    if [[ -f "${LAYOUT_DIR}/stack_${num}" ]]; then
+        # Bajar todas las ventanas al fondo primero
+        #while IFS= read -r win_id; do
+        #    if xdotool getwindowname "$win_id" &> /dev/null; then
+        #        xdotool windowlower "$win_id"
+        #    fi
+        #done < <(tac "${LAYOUT_DIR}/stack_${num}")
+
+        # Activar ventanas en orden (de fondo a frente)
+        while IFS= read -r win_id; do
+            if xdotool getwindowname "$win_id" &> /dev/null; then
+                # Activar sin enfocar (evita parpadeo)
+                xdotool windowactivate "$win_id" >/dev/null 2>&1
+                # Pequeña pausa para permitir al WM procesar
+                #sleep 0.05
+            fi
+        done < "${LAYOUT_DIR}/stack_${num}"
+    fi
+    
+    # Restaurar ventana activa
+    #if [[ -f "${LAYOUT_DIR}/active_${num}" ]]; then
+    #    active_win=$(cat "${LAYOUT_DIR}/active_${num}")
+    #    if xdotool getwindowname "$active_win" &> /dev/null; then
+    #        # Solo activar si está en el escritorio actual
+    #        current_desktop=$(xdotool get_desktop)
+    #        win_desktop=$(xdotool get_desktop_for_window "$active_win")
+    #        
+    #        if [[ "$current_desktop" == "$win_desktop" ]]; then
+    #            wmctrl -ia "$active_win"
+    #        fi
+    #    fi
+    #fi
+    
+    #notify-send "Gestor Ventanas" "Disposición ${num} restaurada\nVentanas: $(wc -l < "${LAYOUT_DIR}/layout_${num}")"
+}
+
+# Función para configurar atajos de teclado
+setup_keybindings() {
+    # Instalar dependencias
+    if ! command -v wmctrl &> /dev/null || ! command -v xdotool &> /dev/null; then
+        echo "Instalando dependencias..."
+        sudo apt update
+        sudo apt install -y wmctrl xdotool
+    fi
+
+    # Crear directorio para disposiciones
+    mkdir -p "$LAYOUT_DIR"
+
+    # Configurar atajos para números 1-9
+    local binding_index=100
+    local new_bindings=""
+
+    for i in {1..9}; do
+        # Atajo Guardar (Ctrl+Shift+Num)
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" name "'Guardar Disposición ${i}'"
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" command "'${SCRIPT_PATH} save ${i}'"
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" binding "'<Primary><Shift>${i}'"
+        new_bindings+="'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/', "
+        ((binding_index++))
+
+        # Atajo Restaurar (Ctrl+Num)
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" name "'Restaurar Disposición ${i}'"
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" command "'${SCRIPT_PATH} restore ${i}'"
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" binding "'<Primary>${i}'"
+        new_bindings+="'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/', "
+        ((binding_index++))
+    done
+
+    # Actualizar lista de atajos
+    new_bindings="${new_bindings%, }"
+    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[${new_bindings}]"
+
+    notify-send "Gestor Ventanas" "Atajos configurados!\nGuardar: Ctrl+Shift+[1-9]\nRestaurar: Ctrl+[1-9]"
+    echo "Instalación completada. Los atajos estarán disponibles después de reiniciar la sesión."
+}
+
+# Función para revertir configuración
+uninstall() {
+    # Eliminar directorio de disposiciones
+    rm -rf "$LAYOUT_DIR"
+
+    # Buscar y eliminar nuestros keybindings
+    current_bindings=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings | tr -d "[]'")
+    IFS=', ' read -ra bindings_array <<< "$current_bindings"
+
+    new_bindings=()
+    for binding in "${bindings_array[@]}"; do
+        if [[ ! "$binding" =~ custom1[0-9][0-9]/ ]]; then
+            [ -n "$binding" ] && new_bindings+=("'$binding'")
+        fi
+    done
+
+    # Convertir a formato gsettings
+    if [ ${#new_bindings[@]} -gt 0 ]; then
+        updated_bindings=$(IFS=,; echo "[${new_bindings[*]}]")
+        gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$updated_bindings"
+    else
+        gsettings reset org.gnome.settings-daemon.plugins.media-keys custom-keybindings
+    fi
+
+    notify-send "Gestor Ventanas" "Configuración eliminada\nAtajos desinstalados"
+}
+
+# Menú principal
+case "$1" in
+    save)
+        save_layout "$2"
+        ;;
+    restore)
+        restore_layout "$2"
+        ;;
+    install)
+        setup_keybindings
+        ;;
+    uninstall)
+        uninstall
+        ;;
+    *)
+        echo -e "Gestor Avanzado de Disposición de Ventanas v5.0\n"
+        echo "Uso: $0 [comando] [número 1-9]"
+        echo "Comandos disponibles:"
+        echo "  install     : Configura los atajos de teclado"
+        echo "  save <num>  : Guarda disposición de ventanas (1-9)"
+        echo "  restore <num>: Restaura disposición de ventanas (1-9)"
+        echo "  uninstall   : Elimina configuración y atajos"
+        echo -e "\nEjemplos:"
+        echo "  $0 install"
+        echo "  $0 save 1"
+        echo "  $0 restore 1"
+        exit 1
+        ;;
+esac
+
+
