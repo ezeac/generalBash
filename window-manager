@@ -1,7 +1,7 @@
 #!/bin/bash
-# Gestor Avanzado de Disposición de Ventanas v5.1
-# Guarda/restaura posiciones, tamaños, escritorios y orden de apilamiento
-# Modificado para usar windowactivate en la restauración del apilamiento
+# Gestor Avanzado de Disposición de Ventanas v5.2
+# Guarda/restaura posiciones, tamaños y orden de apilamiento
+# Usa xdotool para geometría en lugar de wmctrl
 
 # Configuración
 LAYOUT_DIR="$HOME/.window_layouts"
@@ -19,19 +19,34 @@ save_layout() {
     # Crear directorio si no existe
     mkdir -p "$LAYOUT_DIR"
     
-    # Guardar ventanas visibles (excluyendo ventanas de escritorio)
-    wmctrl -lG | awk '$2 != "-1"' > "${LAYOUT_DIR}/layout_${num}"
+    # Guardar ventanas visibles usando xdotool
+    {
+        wmctrl -l | while read -r line; do
+            win_id=$(echo "$line" | awk '{print $1}')
+            # Verificar que la ventana exista
+            if xdotool getwindowname "$win_id" &> /dev/null; then
+                output=$(xdotool getwindowgeometry --shell "$win_id" 2>/dev/null)
+                if [ -n "$output" ]; then
+                    # Extraer valores usando formato --shell de xdotool
+                    x=$(echo "$output" | awk -F= '/X=/ {print $2}')
+                    y=$(echo "$output" | awk -F= '/Y=/ {print $2}')
+                    width=$(echo "$output" | awk -F= '/WIDTH=/ {print $2}')
+                    height=$(echo "$output" | awk -F= '/HEIGHT=/ {print $2}')
+                    
+                    # Solo guardar ventanas con geometría válida
+                    if [[ -n "$x" && -n "$y" && -n "$width" && -n "$height" ]]; then
+                        echo "$win_id $x $y $width $height"
+                    fi
+                fi
+            fi
+        done
+    } > "${LAYOUT_DIR}/layout_${num}"
     
     # Capturar orden de apilamiento (de abajo a arriba)
     xprop -root _NET_CLIENT_LIST_STACKING | \
         awk -F'# ' '{print $2}' | \
         tr -d ',' | \
         xargs -n1 > "${LAYOUT_DIR}/stack_${num}"
-    
-    # Filtrar solo ventanas visibles
-    #grep -F -f <(awk '{print $1}' "${LAYOUT_DIR}/layout_${num}") "${LAYOUT_DIR}/stack_${num}" \
-    #    > "${LAYOUT_DIR}/stack_${num}.tmp"
-    #mv "${LAYOUT_DIR}/stack_${num}.tmp" "${LAYOUT_DIR}/stack_${num}"
     
     # Obtener ventana activa
     active_win=$(xdotool getactivewindow)
@@ -49,57 +64,37 @@ restore_layout() {
         return 1
     fi
     
-    # Restaurar geometría y escritorios
+    # Restaurar geometría (sin manejo de escritorios)
     while IFS= read -r line; do
         read -a params <<< "$line"
         win_id="${params[0]}"
         
         # Solo procesar ventanas existentes
         if xdotool getwindowname "$win_id" &> /dev/null; then
-            # Mover al escritorio correcto
-            wmctrl -ir "$win_id" -t "${params[1]}"
-            
             # Restaurar geometría
-            xdotool windowmove "$win_id" "${params[2]}" "${params[3]}"
-            xdotool windowsize "$win_id" "${params[4]}" "${params[5]}"
+            xdotool windowmove "$win_id" "${params[1]}" "${params[2]}"
+            xdotool windowsize "$win_id" "${params[3]}" "${params[4]}"
         fi
     done < "${LAYOUT_DIR}/layout_${num}"
     
-    # Restaurar orden de apilamiento usando windowactivate
+    # Restaurar orden de apilamiento
     if [[ -f "${LAYOUT_DIR}/stack_${num}" ]]; then
-        # Bajar todas las ventanas al fondo primero
-        #while IFS= read -r win_id; do
-        #    if xdotool getwindowname "$win_id" &> /dev/null; then
-        #        xdotool windowlower "$win_id"
-        #    fi
-        #done < <(tac "${LAYOUT_DIR}/stack_${num}")
-
-        # Activar ventanas en orden (de fondo a frente)
         while IFS= read -r win_id; do
             if xdotool getwindowname "$win_id" &> /dev/null; then
-                # Activar sin enfocar (evita parpadeo)
                 xdotool windowactivate "$win_id" >/dev/null 2>&1
-                # Pequeña pausa para permitir al WM procesar
-                #sleep 0.05
             fi
         done < "${LAYOUT_DIR}/stack_${num}"
     fi
     
     # Restaurar ventana activa
-    #if [[ -f "${LAYOUT_DIR}/active_${num}" ]]; then
-    #    active_win=$(cat "${LAYOUT_DIR}/active_${num}")
-    #    if xdotool getwindowname "$active_win" &> /dev/null; then
-    #        # Solo activar si está en el escritorio actual
-    #        current_desktop=$(xdotool get_desktop)
-    #        win_desktop=$(xdotool get_desktop_for_window "$active_win")
-    #        
-    #        if [[ "$current_desktop" == "$win_desktop" ]]; then
-    #            wmctrl -ia "$active_win"
-    #        fi
-    #    fi
-    #fi
+    if [[ -f "${LAYOUT_DIR}/active_${num}" ]]; then
+        active_win=$(cat "${LAYOUT_DIR}/active_${num}")
+        if xdotool getwindowname "$active_win" &> /dev/null; then
+            xdotool windowactivate "$active_win" >/dev/null 2>&1
+        fi
+    fi
     
-    #notify-send "Gestor Ventanas" "Disposición ${num}"
+    #notify-send "Gestor Ventanas" "Disposición ${num} restaurada"
 }
 
 # Función para configurar atajos de teclado
@@ -184,7 +179,7 @@ case "$1" in
         uninstall
         ;;
     *)
-        echo -e "Gestor Avanzado de Disposición de Ventanas v5.0\n"
+        echo -e "Gestor Avanzado de Disposición de Ventanas v5.2\n"
         echo "Uso: $0 [comando] [número 1-9]"
         echo "Comandos disponibles:"
         echo "  install     : Configura los atajos de teclado"
@@ -198,5 +193,4 @@ case "$1" in
         exit 1
         ;;
 esac
-
 
