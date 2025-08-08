@@ -99,7 +99,7 @@ restore_layout() {
     #    fi
     #fi
     
-    #notify-send "Gestor Ventanas" "Disposición ${num} restaurada\nVentanas: $(wc -l < "${LAYOUT_DIR}/layout_${num}")"
+    #notify-send "Gestor Ventanas" "Disposición ${num}"
 }
 
 # Función para configurar atajos de teclado
@@ -119,17 +119,17 @@ setup_keybindings() {
     local new_bindings=""
 
     for i in {1..9}; do
-        # Atajo Guardar (Ctrl+Shift+Num)
+        # Atajo Guardar (Alt+Shift+Num)
         gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" name "'Guardar Disposición ${i}'"
         gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" command "'${SCRIPT_PATH} save ${i}'"
-        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" binding "'<Primary><Shift>${i}'"
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" binding "'<Alt><Shift>${i}'"
         new_bindings+="'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/', "
         ((binding_index++))
 
-        # Atajo Restaurar (Ctrl+Num)
+        # Atajo Restaurar (Alt+Num)
         gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" name "'Restaurar Disposición ${i}'"
         gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" command "'${SCRIPT_PATH} restore ${i}'"
-        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" binding "'<Primary>${i}'"
+        gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/" binding "'<Alt>${i}'"
         new_bindings+="'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${binding_index}/', "
         ((binding_index++))
     done
@@ -138,7 +138,7 @@ setup_keybindings() {
     new_bindings="${new_bindings%, }"
     gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[${new_bindings}]"
 
-    notify-send "Gestor Ventanas" "Atajos configurados!\nGuardar: Ctrl+Shift+[1-9]\nRestaurar: Ctrl+[1-9]"
+    notify-send "Gestor Ventanas" "Atajos configurados!\nGuardar: Alt+Shift+[1-9]\nRestaurar: Alt+[1-9]"
     echo "Instalación completada. Los atajos estarán disponibles después de reiniciar la sesión."
 }
 
