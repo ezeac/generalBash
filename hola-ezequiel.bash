@@ -205,5 +205,5 @@ findandcd() {
 }
 
 alias holafindandcd='findandcd'
-export VIMINIT=':set mouse-=a number relativenumber | syntax on | set background=dark | colorscheme desert'
+export VIMINIT=':set mouse-=a | syntax on | set background=dark | colorscheme desert'
 
