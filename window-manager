@@ -79,20 +79,20 @@ restore_layout() {
     
     # Restaurar orden de apilamiento
     if [[ -f "${LAYOUT_DIR}/stack_${num}" ]]; then
-        while IFS= read -r win_id; do
+        tail -n 3 "${LAYOUT_DIR}/stack_${num}" | while IFS= read -r win_id; do
             if xdotool getwindowname "$win_id" &> /dev/null; then
                 xdotool windowactivate "$win_id" >/dev/null 2>&1
             fi
-        done < "${LAYOUT_DIR}/stack_${num}"
+        done
     fi
     
     # Restaurar ventana activa
-    if [[ -f "${LAYOUT_DIR}/active_${num}" ]]; then
-        active_win=$(cat "${LAYOUT_DIR}/active_${num}")
-        if xdotool getwindowname "$active_win" &> /dev/null; then
-            xdotool windowactivate "$active_win" >/dev/null 2>&1
-        fi
-    fi
+    #if [[ -f "${LAYOUT_DIR}/active_${num}" ]]; then
+    #    active_win=$(cat "${LAYOUT_DIR}/active_${num}")
+    #    if xdotool getwindowname "$active_win" &> /dev/null; then
+    #        xdotool windowactivate "$active_win" >/dev/null 2>&1
+    #    fi
+    #fi
     
     #notify-send "Gestor Ventanas" "Disposición ${num} restaurada"
 }
