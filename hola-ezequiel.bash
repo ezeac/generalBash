@@ -36,7 +36,6 @@ findandcd() {
     fi
 
     RESULTS=()
-    SELECTED_FILES=()
     INDEX=1
 
     for FILE in $FILES; do
@@ -54,7 +53,6 @@ findandcd() {
                 RESULTS+=("$FILE")
                 RESULTS+=("traditional")
                 RESULTS+=("$MAGE_ROOT")
-                SELECTED_FILES+=("$FILE")
                 ((INDEX++))
             elif [ -n "$PORT" ]; then
                 RESULTS+=("$INDEX")
@@ -62,7 +60,6 @@ findandcd() {
                 RESULTS+=("$FILE")
                 RESULTS+=("docker")
                 RESULTS+=("$PORT")
-                SELECTED_FILES+=("$FILE")
                 ((INDEX++))
             fi
         fi
@@ -72,6 +69,55 @@ findandcd() {
         echo "No se encontraron configuraciones válidas para el dominio."
         return 1
     else
+        # Agrupar resultados tradicionales por directorio (MAGE_ROOT)
+        declare -A grouped_traditional
+        for ((i=0; i<${#RESULTS[@]}; i+=5)); do
+            type="${RESULTS[$i+3]}"
+            data="${RESULTS[$i+4]}"
+            domain="${RESULTS[$i+1]}"
+            if [ "$type" = "traditional" ]; then
+                if [ -z "${grouped_traditional[$data]}" ]; then
+                    grouped_traditional[$data]=""
+                fi
+                grouped_traditional[$data]="${grouped_traditional[$data]} $domain"
+            fi
+        done
+
+        # Crear nuevos resultados agrupados
+        GROUPED_RESULTS=()
+        index=1
+
+        # Procesar grupos tradicionales
+        for key in "${!grouped_traditional[@]}"; do
+            domains="${grouped_traditional[$key]}"
+            domains=$(echo "$domains" | sed 's/^ //')  # Eliminar espacio inicial
+            GROUPED_RESULTS+=("$index")
+            GROUPED_RESULTS+=("$domains")
+            GROUPED_RESULTS+=("$key")
+            GROUPED_RESULTS+=("traditional")
+            GROUPED_RESULTS+=("$key")
+            ((index++))
+        done
+
+        # Procesar entradas docker (sin agrupar)
+        for ((i=0; i<${#RESULTS[@]}; i+=5)); do
+            type="${RESULTS[$i+3]}"
+            if [ "$type" = "docker" ]; then
+                domain="${RESULTS[$i+1]}"
+                file="${RESULTS[$i+2]}"
+                port="${RESULTS[$i+4]}"
+                GROUPED_RESULTS+=("$index")
+                GROUPED_RESULTS+=("$domain")
+                GROUPED_RESULTS+=("$file")
+                GROUPED_RESULTS+=("docker")
+                GROUPED_RESULTS+=("$port")
+                ((index++))
+            fi
+        done
+
+        # Reemplazar resultados originales con agrupados
+        RESULTS=("${GROUPED_RESULTS[@]}")
+
         echo "Se encontraron los siguientes resultados (priorizando /etc/nginx/sites-enabled):"
         for ((i=0; i<${#RESULTS[@]}; i+=5)); do
             NUM="${RESULTS[$i]}"
@@ -81,9 +127,8 @@ findandcd() {
             DATA="${RESULTS[$i+4]}"
 
             if [ "$TYPE" = "traditional" ]; then
-                printf "%s) Dominio: ${GREEN}%s${NC} (traditional)\n" "$NUM" "$DOM"
-                printf "   Archivo: %s\n" "$FILE"
-                printf "   MAGE_ROOT: %s\n" "$DATA"
+                printf "%s) Directorio: ${GREEN}%s${NC} (traditional)\n" "$NUM" "$DATA"
+                printf "   Dominios: %s\n" "$DOM"
             else
                 printf "%s) Dominio: ${GREEN}%s${NC} (docker)\n" "$NUM" "$DOM"
                 printf "   Archivo: %s\n" "$FILE"
@@ -92,12 +137,12 @@ findandcd() {
         done
 
         # Preguntar al usuario cuál seleccionar si hay múltiples opciones
-        if [ "$INDEX" -gt 2 ]; then
+        if [ "$index" -gt 2 ]; then
             printf "Seleccione el número del sitio al que desea ir: "
             read -r SELECTION
 
             # Validar la selección del usuario
-            if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$INDEX" ]; then
+            if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -ge "$index" ]; then
                 echo "Selección inválida."
                 return 1
             fi
@@ -206,4 +251,3 @@ findandcd() {
 
 alias holafindandcd='findandcd'
 export VIMINIT=':set mouse-=a | syntax on | set background=dark | colorscheme desert'
-
